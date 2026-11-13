@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>What's Changing in Novato | Nathan Irving, Coldwell Banker Realty</title>
+<meta name="description" content="A plain-language map of every project on the City of Novato's planning list: new homes, shops, storage, cell sites and more, with status and links to the city's pages.">
+<meta property="og:title" content="What's changing in Novato">
+<meta property="og:description" content="Every project on the City of Novato's planning list on one map, in plain language, with status and links to the city's pages.">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --navy: #012169; --gold: #B08D57; --ink: #1d2433; --muted: #5b6474; --line: #e3e6ec; --bg: #f5f6f8; --card: #fff;
+    --review: #C26A00; --approved: #012169; --wireless: #6b7280;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body { font-family: Arial, Helvetica, sans-serif; color: var(--ink); background: var(--bg); display: flex; flex-direction: column; }
+  a { color: var(--navy); }
+  header { background: var(--navy); color: #fff; border-bottom: 3px solid var(--gold); padding: 10px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 1.15rem; }
+  header .sub { color: var(--gold); font-size: .78rem; margin-top: 2px; }
+  header .agent { text-align: right; font-size: .78rem; line-height: 1.4; }
+  header .agent a { color: var(--gold); font-weight: bold; text-decoration: none; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #side { width: 420px; max-width: 46vw; background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; overflow-y: auto; }
+  #side > * { flex: none; }
+  .intro .jump { display: inline-block; margin-top: 10px; font: bold .8rem Arial, sans-serif; color: var(--navy); text-decoration: none; border-bottom: 2px solid var(--gold); }
+  #map { flex: 1; min-height: 0; background: #dfe7ee; }
+  .intro { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+  .intro p { font-size: .86rem; line-height: 1.45; color: var(--muted); }
+  .stats { display: flex; gap: 8px; margin-top: 10px; }
+  .stat { flex: 1; background: var(--bg); border-radius: 6px; padding: 8px 9px; }
+  .stat b { display: block; font-size: 1.15rem; color: var(--navy); }
+  .stat span { font-size: .7rem; color: var(--muted); line-height: 1.3; display: block; }
+  .tools { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 6px 11px; font: bold .78rem Arial, sans-serif; color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .chip .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .chip.on { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .chip .n { font-weight: normal; opacity: .8; }
+  #q { flex: 1 1 100%; padding: 8px 10px; border: 1px solid #c8cdd6; border-radius: 4px; font: .88rem Arial, sans-serif; margin-top: 4px; }
+  #q:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+  #list { min-height: 120px; }
+  .item { border-bottom: 1px solid var(--line); padding: 11px 16px; cursor: pointer; }
+  .item:hover { background: #fafbfc; }
+  .item.sel { background: #f6f1e8; box-shadow: inset 4px 0 0 var(--gold); }
+  .item .top { display: flex; gap: 8px; align-items: flex-start; }
+  .item .dot { width: 11px; height: 11px; border-radius: 50%; margin-top: 4px; flex: none; }
+  .item h3 { font-size: .93rem; line-height: 1.3; color: var(--navy); }
+  .item .meta { font-size: .76rem; color: var(--muted); margin-top: 2px; }
+  .tag { display: inline-block; font-size: .64rem; font-weight: bold; letter-spacing: .4px; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin: 4px 4px 0 0; color: #fff; }
+  .tag.review { background: var(--review); } .tag.approved { background: var(--approved); } .tag.wireless { background: var(--wireless); }
+  .tag.law { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  .tag.ham { background: var(--gold); }
+  .detail { display: none; margin: 8px 0 2px 19px; }
+  .item.sel .detail { display: block; }
+  .detail p { font-size: .84rem; line-height: 1.45; margin-bottom: 7px; }
+  .detail ul { margin: 0 0 8px 16px; font-size: .82rem; line-height: 1.5; }
+  .detail .status { background: var(--bg); border-radius: 5px; padding: 7px 9px; font-size: .8rem; margin-bottom: 8px; }
+  .detail .status b { color: var(--navy); }
+  .detail .fine { font-size: .72rem; color: var(--muted); margin-bottom: 7px; }
+  .btn { display: inline-block; border: none; cursor: pointer; font: bold .8rem Arial, sans-serif; background: var(--navy); color: #fff; padding: 8px 11px; border-radius: 4px; text-decoration: none; margin: 2px 4px 2px 0; }
+  .btn.alt { background: #fff; color: var(--navy); border: 1px solid var(--navy); }
+  .btn.gold { background: var(--gold); }
+  .signup { padding: 14px 16px 16px; background: #fbf8f2; border-top: 3px solid var(--gold); }
+  .signup h2 { font-size: 1rem; color: var(--navy); margin-bottom: 4px; }
+  .signup p { font-size: .82rem; line-height: 1.45; color: var(--muted); margin-bottom: 8px; }
+  .signup label { display: block; font-size: .76rem; font-weight: bold; color: var(--navy); margin-top: 7px; }
+  .signup input { display: block; width: 100%; margin-top: 3px; padding: 8px 9px; border: 1px solid #c8cdd6; border-radius: 4px; font: .88rem Arial, sans-serif; background: #fff; }
+  .signup input:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+  .signup .hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+  .signup .err { color: #b42318; font-size: .8rem; font-weight: bold; min-height: 1em; margin: 7px 0 3px; }
+  .signup .consent { font-size: .68rem; color: var(--muted); margin-top: 6px; line-height: 1.4; }
+  .signup .ok { font-size: .88rem; color: var(--navy); font-weight: bold; }
+  footer { background: #fff; border-top: 1px solid var(--line); font-size: .66rem; color: #4b5563; padding: 6px 12px; text-align: center; line-height: 1.45; }
+  .pin { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .pin.sel { outline: 3px solid var(--gold); }
+  .leaflet-tooltip.lbl { font: bold .75rem Arial, sans-serif; color: var(--navy); }
+  .legend { background: rgba(255,255,255,.95); padding: 7px 10px; border-radius: 6px; font-size: .74rem; line-height: 1.6; box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+  .legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; vertical-align: -1px; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.15); }
+  .ham-link { background: var(--navy); color: #fff !important; font: bold .78rem Arial, sans-serif; padding: 8px 11px; border-radius: 4px; text-decoration: none; display: block; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+  .ham-link span { color: var(--gold); }
+  @media (max-width: 760px) {
+    header .sub { display: none; } header .agent { text-align: left; font-size: .72rem; }
+    html, body { height: auto; } body { display: block; }
+    main { flex-direction: column; }
+    #map { flex: none; height: 42vh; min-height: 240px; position: sticky; top: 0; z-index: 5; border-bottom: 2px solid var(--gold); }
+    #side { width: 100%; max-width: none; border-right: none; order: 2; }
+    #side { overflow: visible; }
+    .item, .signup { scroll-margin-top: calc(42vh + 8px); }
+    .legend { font-size: .64rem; padding: 4px 7px; line-height: 1.45; } .legend div:last-child { display: none; }
+    footer { font-size: .6rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>What&rsquo;s changing in Novato</h1>
+    <div class="sub">Every project on the city&rsquo;s planning list, on one map, in plain language</div>
+  </div>
+  <div class="agent"><b>Nathan Irving, REALTOR&reg;</b> &middot; Coldwell Banker Realty<br><a href="tel:+14152094864">415.209.4864</a> &middot; <a href="mailto:nathan.irving@cbrealty.com">nathan.irving@cbrealty.com</a></div>
+</header>
+<main>
+  <aside id="side">
+    <div class="intro">
+      <p>New homes, shops, storage and cell sites that are proposed or approved in Novato. Tap any project for what it is, where it stands and a link to the city&rsquo;s official page.</p>
+      <div class="stats" id="stats"></div>
+      <a class="jump" href="#signup" id="jump">Get Nathan&rsquo;s free monthly update &darr;</a>
+    </div>
+    <div class="tools" id="chips">
+      <input id="q" type="search" placeholder="Search by street, name or type (e.g. Grant, storage, apartments)" aria-label="Search projects">
+    </div>
+    <div id="list" role="list"></div>
+    <section class="signup" id="signup">
+      <h2>Get the monthly &ldquo;What&rsquo;s changing in Novato&rdquo; update</h2>
+      <p>Once a month, a short email from Nathan with new projects, approvals and hearings, in plain language. No spam; unsubscribe anytime.</p>
+      <form id="signup-form" novalidate>
+        <label for="s-name">Name</label><input id="s-name" name="name" autocomplete="name">
+        <label for="s-email">Email</label><input id="s-email" name="email" type="email" autocomplete="email" required>
+        <label for="s-hood">Your neighborhood (optional)</label><input id="s-hood" name="neighborhood" placeholder="e.g. Hamilton, San Marin, Downtown">
+        <input class="hp" name="_gotcha" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="err" id="s-err" role="alert"></div>
+        <button class="btn gold" type="submit" id="s-btn">Sign me up</button>
+        <div class="consent" id="s-consent"></div>
+      </form>
+    </section>
+  </aside>
+  <div id="map" aria-label="Map of Novato planning projects"></div>
+</main>
+<footer id="foot"></footer>
+
+<script>
+  window.CHANGES_CONFIG = {
+    hamiltonLink: null,
+    form: {
+      endpoint: 'https://formspree.io/f/mjybonej',
+      subject: 'Novato changes update signup',
+      consent: 'By signing up, you agree that Nathan Irving (Coldwell Banker Realty, DRE# 02414117) may email you the monthly update and follow up about real estate. Your information is never sold or shared.'
+    }
+  };
+</script>
+<script src="areas/novato/projects.js"></script>
+<script src="areas/novato/parcels.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="engine/changes.js"></script>
+</body>
+</html>
