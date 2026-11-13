@@ -33,6 +33,9 @@
   });
   var byId = {}; projects.forEach(function (p) { byId[p.id] = p; });
 
+  var homeLink = document.getElementById('home-link');
+  if (homeLink && CFG.hubLink) { homeLink.href = CFG.hubLink; homeLink.hidden = false; }
+
   // ---------- stats ----------
   function sumUnits(cat) { return projects.filter(function (p) { return p.cat === cat; }).reduce(function (s, p) { return s + (p.units || 0); }, 0); }
   var nonWireless = projects.filter(function (p) { return p.cat !== 'wireless'; }).length;
