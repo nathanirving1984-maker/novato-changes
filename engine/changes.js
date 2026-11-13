@@ -285,7 +285,12 @@
   });
 
   render();
-  var hash =decodeURIComponent((location.hash || '').slice(1));
+  // Address handed over from the hub page (same tab, sessionStorage only)
+  try {
+    var handed = sessionStorage.getItem('novatoNearQuery');
+    if (handed) { sessionStorage.removeItem('novatoNearQuery'); nearQ.value = handed; setTimeout(function () { if (nearForm.requestSubmit) nearForm.requestSubmit(); else nearForm.dispatchEvent(new Event('submit', { cancelable: true })); }, 200); }
+  } catch (e) {}
+  var hash = decodeURIComponent((location.hash || '').slice(1));
   if (hash && byId[hash]) setTimeout(function () { select(hash, { fromMap: true }); }, 300);
 
   // ---------- monthly update signup ----------
