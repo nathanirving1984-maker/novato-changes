@@ -98,7 +98,15 @@
   });
   qBox.addEventListener('input', function () { state.q = qBox.value.trim().toLowerCase(); render(); });
 
+  function miles(a, b) {
+    var R = 3958.8, toR = Math.PI / 180, dLa = (b[0] - a[0]) * toR, dLo = (b[1] - a[1]) * toR;
+    var h = Math.sin(dLa / 2) * Math.sin(dLa / 2) + Math.cos(a[0] * toR) * Math.cos(b[0] * toR) * Math.sin(dLo / 2) * Math.sin(dLo / 2);
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  function fmtMi(d) { return d < 0.1 ? 'under 0.1 mi' : d.toFixed(1) + ' mi'; }
+
   function visible(p) {
+    if (state.near && (p.dist == null || p.dist > state.near.r)) return false;
     if (state.cat !== 'all' && p.cat !== state.cat) return false;
     if (state.q && state.q.split(/\s+/).some(function (w) { return p.search.indexOf(w) < 0; })) return false;
     return true;
@@ -128,17 +136,19 @@
   function render() {
     chips.querySelectorAll('.chip').forEach(function (b) { b.classList.toggle('on', b.dataset.k === state.cat); });
     var vis = projects.filter(visible), html = '';
+    if (state.near) vis.sort(function (a, b) { return a.dist - b.dist; });
     vis.forEach(function (p) {
       var tags = '<span class="tag ' + p.cat + '">' + CAT[p.cat].label + '</span>' +
         (p.law ? '<span class="tag law">' + esc(p.law) + '</span>' : '') +
         (p.hamilton ? '<span class="tag ham">Hamilton</span>' : '');
-      var meta = esc(p.addr) + (p.kind ? ' &middot; ' + esc(p.kind) : '') + (p.units ? ' &middot; ' + p.units.toLocaleString() + ' homes' : '');
+      var meta = (state.near ? '<span class="dist">' + fmtMi(p.dist) + ' away</span> &middot; ' : '') + esc(p.addr) + (p.kind ? ' &middot; ' + esc(p.kind) : '') + (p.units ? ' &middot; ' + p.units.toLocaleString() + ' homes' : '');
       html += '<div class="item' + (state.sel === p.id ? ' sel' : '') + '" role="listitem" data-id="' + p.id + '" tabindex="0">' +
         '<div class="top"><span class="dot" style="background:' + CAT[p.cat].color + '"></span><div><h3>' + esc(p.name) + '</h3>' +
         '<div class="meta">' + meta + '</div>' + tags + '</div></div>' +
         '<div class="detail">' + (state.sel === p.id ? detailHtml(p) : '') + '</div></div>';
     });
-    if (!vis.length) html = '<div class="item" style="cursor:default"><div class="meta">No projects match. Try another word or tap &ldquo;All&rdquo;.</div></div>';
+    if (!vis.length) html = '<div class="item" style="cursor:default"><div class="meta">' + (state.near ? 'Nothing on the city&rsquo;s list within ' + radiusLabel(state.near.r) + '. Try a bigger distance or tap &ldquo;All&rdquo;.' : 'No projects match. Try another word or tap &ldquo;All&rdquo;.') + '</div></div>';
+    if (state.near) nearSummary();
     listEl.innerHTML = html;
     projects.forEach(function (p) {
       var m = markers[p.id]; if (!m) return;
@@ -166,7 +176,10 @@
     Object.keys(markers).forEach(function (k) { markers[k].setStyle({ color: '#fff', weight: 2 }); });
     if (id) {
       var p = byId[id];
-      if (!visible(p)) { state.cat = 'all'; state.q = ''; qBox.value = ''; }
+      if (!visible(p)) {
+        state.cat = 'all'; state.q = ''; qBox.value = '';
+        if (state.near && !(p.dist <= state.near.r)) { state.near = null; nearLayer.clearLayers(); nearRes.hidden = true; }
+      }
       if (markers[id]) { markers[id].setStyle({ color: '#B08D57', weight: 4 }); markers[id].bringToFront(); }
       p.rings.forEach(function (r) { L.polygon(r, { color: '#B08D57', weight: 3, fillColor: '#B08D57', fillOpacity: .18, interactive: false }).addTo(selLayer); });
       if (p.rings.length) map.flyToBounds(L.latLngBounds([].concat.apply([], p.rings)), { padding: [60, 60], maxZoom: 17, duration: .8 });
@@ -182,8 +195,97 @@
     }
   }
 
+  // ---------- "What's changing near you?" ----------
+  // Address search: OpenStreetMap Nominatim, limited to the Novato area, run only when the visitor presses the button.
+  // The address stays in this browser; it is not saved or sent to Nathan unless the visitor signs up (it pre-fills the neighborhood box).
+  var nearForm = document.getElementById('near-form'), nearQ = document.getElementById('near-q'), nearMsg = document.getElementById('near-msg');
+  var nearRes = document.getElementById('near-res'), nearSum = document.getElementById('near-sum'), nearLayer = L.layerGroup().addTo(map);
+  var VIEWBOX = '-122.66,38.17,-122.47,38.02';
+  function radiusLabel(r) { return r === 0.5 ? 'half a mile' : r + (r === 1 ? ' mile' : ' miles'); }
+  function msg(t, bad) { nearMsg.textContent = t || ''; nearMsg.className = bad ? 'bad' : ''; }
+
+  function nearSummary() {
+    var inR = projects.filter(function (p) { return p.dist != null && p.dist <= state.near.r; });
+    var b = inR.filter(function (p) { return p.cat !== 'wireless'; }), w = inR.length - b.length;
+    var homes = b.reduce(function (s, p) { return s + (p.units || 0); }, 0);
+    var nearest = b.slice().sort(function (x, y) { return x.dist - y.dist; })[0];
+    var s = 'Within ' + radiusLabel(state.near.r) + ' of <b>' + esc(state.near.label) + '</b>: ';
+    if (!inR.length) s += 'nothing on the city&rsquo;s current list.';
+    else {
+      s += '<b>' + b.length + '</b> building project' + (b.length === 1 ? '' : 's');
+      if (homes) s += ' (' + homes.toLocaleString() + ' homes)';
+      if (w) s += ' and <b>' + w + '</b> cell site' + (w === 1 ? '' : 's');
+      s += '.';
+      if (nearest) s += ' Closest: <a href="#' + nearest.id + '" data-near-go="' + nearest.id + '">' + esc(nearest.name) + '</a>, ' + fmtMi(nearest.dist) + '.';
+    }
+    nearSum.innerHTML = s;
+  }
+
+  function drawNear() {
+    nearLayer.clearLayers();
+    if (!state.near) return;
+    var rm = state.near.r * 1609.34;
+    L.circle(state.near.pt, { radius: rm, color: '#fff', weight: 6, opacity: .85, fill: false, interactive: false }).addTo(nearLayer);
+    L.circle(state.near.pt, { radius: rm, color: '#B08D57', weight: 3, opacity: 1, dashArray: '10 7', fillColor: '#ffffff', fillOpacity: .12, interactive: false }).addTo(nearLayer);
+    L.marker(state.near.pt, { icon: L.divIcon({ className: '', html: '<div class="home-pin">&#8962;</div>', iconSize: [26, 26], iconAnchor: [13, 13] }), title: 'Your spot', keyboard: false }).addTo(nearLayer);
+    map.flyToBounds(L.latLng(state.near.pt).toBounds(rm * 2), { padding: [12, 12], duration: .8 });
+  }
+
+  function setNear(pt, label) {
+    projects.forEach(function (p) { p.dist = p.loc ? miles(pt, p.loc) : null; });
+    state.near = { pt: pt, label: label, r: state.near ? state.near.r : 1 };
+    state.cat = 'all'; state.q = ''; qBox.value = ''; state.sel = null; selLayer.clearLayers();
+    nearRes.hidden = false; msg('');
+    var hood = document.getElementById('s-hood'); if (hood && !hood.value) hood.value = label;
+    drawNear(); render();
+  }
+  function clearNear() {
+    state.near = null; nearLayer.clearLayers(); nearRes.hidden = true; msg(''); nearQ.value = '';
+    projects.forEach(function (p) { p.dist = null; });
+    render();
+    var all = projects.filter(function (p) { return p.loc; }).map(function (p) { return p.loc; });
+    map.flyToBounds(all, { padding: [30, 30], duration: .8 });
+  }
+
+  nearForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var q = nearQ.value.trim();
+    if (q.length < 4) { msg('Type your street address, e.g. 1200 Grant Ave.', true); nearQ.focus(); return; }
+    if (!/novato|9494[579]/i.test(q)) q += ', Novato, CA';
+    msg('Finding your address…');
+    var url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=us&bounded=1&viewbox=' + VIEWBOX + '&q=' + encodeURIComponent(q);
+    fetch(url, { headers: { Accept: 'application/json' } }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (res) {
+      if (!res.length) { msg('Couldn’t find that address in Novato. Try just the number and street, or use your location.', true); return; }
+      var a = res[0], parts = (a.display_name || '').split(', ');
+      var label = /^\d/.test(parts[0]) && parts[1] ? parts[0] + ' ' + parts[1] : parts[0] || nearQ.value.trim();
+      setNear([+a.lat, +a.lon], label);
+    }).catch(function () { msg('Address search isn’t responding right now. Try again, or use your location.', true); });
+  });
+
+  document.getElementById('near-me').addEventListener('click', function () {
+    if (!navigator.geolocation) { msg('Your browser can’t share location. Type your address instead.', true); return; }
+    msg('Getting your location…');
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      var pt = [pos.coords.latitude, pos.coords.longitude];
+      if (miles(pt, [38.095, -122.56]) > 8) { msg('You look to be outside Novato. Type a Novato address instead.', true); return; }
+      setNear(pt, 'your location');
+    }, function () { msg('Location wasn’t shared. Type your address instead.', true); }, { enableHighAccuracy: true, timeout: 10000 });
+  });
+
+  document.getElementById('radius').addEventListener('click', function (ev) {
+    var b = ev.target.closest('[data-r]'); if (!b || !state.near) return;
+    state.near.r = +b.dataset.r;
+    this.querySelectorAll('[data-r]').forEach(function (x) { x.classList.toggle('on', x === b); });
+    drawNear(); render();
+  });
+  document.getElementById('near-clear').addEventListener('click', clearNear);
+  nearSum.addEventListener('click', function (ev) {
+    var a = ev.target.closest('[data-near-go]'); if (!a) return;
+    ev.preventDefault(); select(a.dataset.nearGo, { fromMap: true });
+  });
+
   render();
-  var hash = decodeURIComponent((location.hash || '').slice(1));
+  var hash =decodeURIComponent((location.hash || '').slice(1));
   if (hash && byId[hash]) setTimeout(function () { select(hash, { fromMap: true }); }, 300);
 
   // ---------- monthly update signup ----------
@@ -214,7 +316,8 @@
     'Nathan Irving, REALTOR&reg; &middot; DRE# 02414117 &middot; Coldwell Banker Realty &middot; Equal Housing Opportunity &middot; ' +
     'Project information summarized from the <a href="' + esc(D.source) + '" target="_blank" rel="noopener">City of Novato Planning Division&rsquo;s Planning Projects pages</a>, last checked ' + fmtDate(D.checked) + '. ' +
     'Not affiliated with the City of Novato; the city&rsquo;s pages are the official source. Information deemed reliable but not guaranteed. ' +
-    'Parcels: Marin County CDA/Assessor (not survey accurate) &middot; Basemap: USGS The National Map.';
+    'Parcels: Marin County CDA/Assessor (not survey accurate) &middot; Basemap: USGS The National Map &middot; ' +
+    'Address search: Nominatim, &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a> (your address isn&rsquo;t saved).';
 
   window.__changes = { map: map, select: select, projects: projects, markers: markers };
 })();

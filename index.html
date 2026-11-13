@@ -29,6 +29,21 @@
   #map { flex: 1; min-height: 0; background: #dfe7ee; }
   .intro { padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
   .intro p { font-size: .86rem; line-height: 1.45; color: var(--muted); }
+  .near { margin-top: 12px; background: #fbf8f2; border: 1px solid #eadfcb; border-radius: 8px; padding: 11px 12px; }
+  .near label { display: block; font-weight: bold; color: var(--navy); font-size: .95rem; margin-bottom: 6px; }
+  .near-row { display: flex; gap: 6px; }
+  .near-row input { flex: 1; min-width: 0; padding: 9px 10px; border: 1px solid #c8cdd6; border-radius: 4px; font: .9rem Arial, sans-serif; }
+  .near-row input:focus { outline: 2px solid var(--gold); border-color: var(--gold); }
+  .near-row .btn { margin: 0; white-space: nowrap; }
+  .near-sub { margin-top: 6px; font-size: .78rem; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .linkish { background: none; border: none; padding: 0; font: bold .78rem Arial, sans-serif; color: var(--navy); text-decoration: underline; cursor: pointer; }
+  #near-msg { color: var(--muted); } #near-msg.bad { color: #b42318; font-weight: bold; }
+  .near-res { margin-top: 9px; font-size: .84rem; line-height: 1.45; }
+  .near-res b { color: var(--navy); }
+  .radius { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 7px; }
+  .chip.sm { padding: 4px 10px; font-size: .74rem; }
+  .item .dist { font-weight: bold; color: var(--gold); }
+  .home-pin { background: var(--gold); color: #fff; border: 2px solid #fff; border-radius: 50%; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; font-size: 15px; box-shadow: 0 2px 6px rgba(0,0,0,.45); }
   .stats { display: flex; gap: 8px; margin-top: 10px; }
   .stat { flex: 1; background: var(--bg); border-radius: 6px; padding: 8px 9px; }
   .stat b { display: block; font-size: 1.15rem; color: var(--navy); }
@@ -105,6 +120,26 @@
   <aside id="side">
     <div class="intro">
       <p>New homes, shops, storage and cell sites that are proposed or approved in Novato. Tap any project for what it is, where it stands and a link to the city&rsquo;s official page.</p>
+      <form class="near" id="near-form" novalidate>
+        <label for="near-q">What&rsquo;s changing near you?</label>
+        <div class="near-row">
+          <input id="near-q" type="search" placeholder="Your Novato address" autocomplete="street-address" aria-label="Your Novato address">
+          <button class="btn" type="submit" id="near-go">Show nearby</button>
+        </div>
+        <div class="near-sub">
+          <button type="button" class="linkish" id="near-me">Use my location</button>
+          <span id="near-msg" role="status"></span>
+        </div>
+        <div class="near-res" id="near-res" hidden>
+          <div id="near-sum"></div>
+          <div class="radius" id="radius">
+            <button type="button" class="chip sm" data-r="0.5">&frac12; mile</button>
+            <button type="button" class="chip sm on" data-r="1">1 mile</button>
+            <button type="button" class="chip sm" data-r="2">2 miles</button>
+            <button type="button" class="linkish" id="near-clear">Clear</button>
+          </div>
+        </div>
+      </form>
       <div class="stats" id="stats"></div>
       <a class="jump" href="#signup" id="jump">Get Nathan&rsquo;s free monthly update &darr;</a>
     </div>
